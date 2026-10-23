@@ -1,0 +1,13 @@
+# Cloudflare Pages only (GitHub Pages ignores this file)
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: interest-cohort=(), browsing-topics=()
+/assets/*
+  Cache-Control: public, max-age=86400
+/images/*
+  Cache-Control: public, max-age=604800
+/deals.json
+  Cache-Control: public, max-age=60, must-revalidate
+/config.json
+  Cache-Control: public, max-age=300
