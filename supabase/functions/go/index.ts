@@ -1,4 +1,4 @@
-// Zoya Deals click tracker: GET /functions/v1/go?d=<deal_id>
+// Zoya Deals click tracker: GET /functions/v1/go?p=<product_id>  (legacy: ?d=<id>)
 // Logs a click (referrer, country, sha-256 of UA; never the IP) and 302s to the store
 // with the affiliate tag from public.config. Deployed with verify_jwt = false.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -10,6 +10,8 @@ const db = createClient(
   { auth: { persistSession: false } },
 );
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
+// Old ids from before the products restructure (2026-10-23), so stale links keep working.
+const LEGACY: Record<string, string> = { "nord-buds-3r": "oneplus-nord-buds-3r" };
 
 async function sha256(s: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -33,17 +35,19 @@ const text = (body: string, status: number) =>
 
 Deno.serve(async (req) => {
   if (req.method !== "GET" && req.method !== "HEAD") return text("Method not allowed", 405);
-  const id = (new URL(req.url).searchParams.get("d") || "").trim().toLowerCase();
-  if (!ID_RE.test(id)) return text("Deal not found", 404);
+  const qs = new URL(req.url).searchParams;
+  let id = (qs.get("p") || qs.get("d") || "").trim().toLowerCase();
+  id = LEGACY[id] || id;
+  if (!ID_RE.test(id)) return text("Product not found", 404);
 
-  const [{ data: deal, error }, { data: cfg }] = await Promise.all([
-    db.from("deals").select("id, store, product_url, active").eq("id", id).maybeSingle(),
+  const [{ data: product, error }, { data: cfg }] = await Promise.all([
+    db.from("products").select("product_id, store, product_url, active").eq("product_id", id).maybeSingle(),
     db.from("config").select("amazon_tag, flipkart_affid").eq("id", true).maybeSingle(),
   ]);
-  if (error) { console.error("deal lookup", error); return text("Temporarily unavailable", 503); }
-  if (!deal || !deal.active) return text("Deal not found", 404);
+  if (error) { console.error("product lookup", error); return text("Temporarily unavailable", 503); }
+  if (!product || !product.active) return text("Product not found", 404);
 
-  const target = withTag(deal.product_url, deal.store, cfg);
+  const target = withTag(product.product_url, product.store, cfg);
 
   // Don't count HEAD probes or obvious link-preview bots as clicks.
   const ua = req.headers.get("user-agent") || "";
@@ -53,7 +57,7 @@ Deno.serve(async (req) => {
       req.headers.get("x-vercel-ip-country") || null;
     const referrer = (req.headers.get("referer") || "").slice(0, 500) || null;
     const { error: e2 } = await db.from("clicks").insert({
-      deal_id: deal.id,
+      product_id: product.product_id,
       referrer,
       country: country && country !== "XX" ? country.slice(0, 8) : null,
       ua_hash: ua ? await sha256(ua) : null,

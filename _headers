@@ -7,7 +7,7 @@
   Cache-Control: public, max-age=86400
 /images/*
   Cache-Control: public, max-age=604800
-/deals.json
+/products.json
   Cache-Control: public, max-age=60, must-revalidate
 /config.json
   Cache-Control: public, max-age=300

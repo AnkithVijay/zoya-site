@@ -1,75 +1,80 @@
 # Zoya Deals: link-in-bio site (zoya.marqlo.in)
 
-> **Backend:** deals, price history and click tracking live in Supabase. See [`supabase/README.md`](supabase/README.md). The site reads the public `deal_cards` view; "View deal" goes through the `go` function (click log + affiliate tag from the `config` table). `config.json` and `deals.json` are only the offline fallback.
+> **Backend:** products, price history and click tracking live in Supabase; `products.product_id` is the key everything links to. See [`supabase/README.md`](supabase/README.md). The page paints instantly from `products.json` (a snapshot of the public `product_cards` view) and then refreshes from Supabase in the background. "View deal" goes through the `go` function (`?p=<product_id>`: click log + affiliate tag from the `config` table).
 
-This is a static site made of plain HTML, CSS and a little JS. It has no build step, no framework, no analytics and no third-party requests, and it runs as-is on GitHub Pages or Cloudflare Pages.
+This is a static site made of plain HTML, CSS and a little JS. It has no build step, no framework and no analytics. The only third-party requests are the Supabase read and the `/go` redirect. It runs as-is on GitHub Pages or Cloudflare Pages.
 
 ```
 index.html              page shell, OG/Twitter meta tags, footer disclosure
-assets/style.css        black void + cyan/violet glow, system "Avenir-like" font stack
-assets/app.js           loads deals from Supabase (deal_cards), falls back to config.json + deals.json
+assets/style.css        minimal dark list, system font stack
+assets/app.js           paints products.json, then refreshes from Supabase (product_cards)
 assets/img/             avatar-256.webp, og.jpg (1200x630), favicons
 favicon.ico             made from the channel watermark
-deals.json              fallback deal list (used only if Supabase is unreachable)
-config.json             affiliate IDs (empty means plain links)
-images/deals/<slug>.webp  product cutouts
+products.json           snapshot of product_cards (regenerate: scripts/export_products.py)
+config.json             affiliate IDs, used only for direct links when Supabase is down
+images/products/<product_id>.webp  product cutouts
 CNAME                   zoya.marqlo.in (used by GitHub Pages; Cloudflare ignores it)
 .nojekyll               serve files as-is on GitHub Pages
 _headers                cache and security headers (Cloudflare Pages only)
 404.html, robots.txt
-scripts/add_deal.py     reel job -> deal image + deals.json, --sql prints Supabase SQL
+scripts/add_product.py  reel job -> product image + products.json entry, --sql prints Supabase SQL
+scripts/add_deal.py     deprecated alias for add_product.py (old flags still work)
+scripts/export_products.py  Supabase product_cards -> products.json (no secret needed)
 scripts/record_price.py record a price check (prints SQL)
 supabase/               schema migrations, go edge function, backend docs (README.md)
 qc/                     screenshots (git-ignored, not deployed)
 
-Layout (minimal v2): one centred 440px column; each deal is a single list row
-(thumbnail, name, price · store, chevron) linking to the store. The newest deal
-gets a small "New" label. Search shows only when there are more than 6 deals.
-mrp, hot, features and reel_url stay in deals.json but are not displayed.
+Layout: one centred 440px column; each product is a single list row (thumbnail, name,
+price line, one muted highlights line, store · price date, chevron). The newest product
+gets a small "New" label. Search shows only when there are more than 6 products.
+Order: featured first, then sort_order, then newest.
 ```
 
-## Deals: `deals.json`
+## Products: `products.json`
+
+Generated, don't hand-edit. Same fields as the `product_cards` view (minus click counts):
 
 ```json
-{ "deals": [ {
-  "slug": "oneplus-nord-buds-3r",
-  "title": "OnePlus Nord Buds 3R TWS Earbuds",
-  "image": "images/deals/oneplus-nord-buds-3r.webp",
-  "price": 1999,
-  "mrp": 2499,                 // optional; shows strike-through and % off
-  "store": "amazon",           // amazon | flipkart
-  "url": "https://www.amazon.in/dp/B0FMDL81GS/?tag={AMAZON_TAG}",
-  "date": "2026-10-23",        // newest date is pinned as "Latest from the reel"
-  "reel_url": "https://…",     // optional "Watch the reel" button
-  "hot": true,                 // kept in data, not shown
-  "features": ["…"]            // kept in data, not shown
+{ "updated": "2026-10-23T09:58:55+00:00", "source": "supabase", "products": [ {
+  "product_id": "oneplus-nord-buds-3r",
+  "title": "OnePlus Nord Buds 3R TWS Earbuds", "brand": "OnePlus", "category": "tws_earbuds",
+  "tagline": null, "highlights": ["12.4mm titanium drivers", "47ms low latency", "54 hours battery", "dual connection"],
+  "image_url": "images/products/oneplus-nord-buds-3r.webp",
+  "store": "amazon", "store_product_id": "B0FMDL81GS", "product_url": "https://www.amazon.in/dp/B0FMDL81GS",
+  "reel_url": null, "listing_price": null, "current_price": 1999, "previous_price": null,
+  "price_checked_at": "2026-10-23T09:44:41.104295+00:00", "featured": true, "sort_order": 0,
+  "created_at": "2026-10-23T09:44:41.104295+00:00"
 } ] }
 ```
 
-## Affiliate tags: `config.json`
+- `listing_price` (MRP) shows a strike-through and % off when it's above `current_price`.
+- `previous_price` shows a small ↓/↑ change marker.
+- `highlights` (max 4) render as one muted line; `tagline` is used when there are none.
 
-```json
-{ "amazon_tag": "", "flipkart_affid": "" }
-```
+## Affiliate tags
 
-- If a value is empty, the `tag=` or `affid=` parameter is removed, so the visitor gets a plain product link (that is the current state).
-- To set your IDs, fill in `amazon_tag` (e.g. `yourtag-21`) and/or `flipkart_affid` and redeploy. Every `{AMAZON_TAG}` or `{FLIPKART_AFFID}` placeholder is then filled in. A URL without a placeholder gets `?tag=` or `&affid=` appended.
+The tag lives in Supabase `config` (the `go` function adds it). `config.json`
+(`{ "amazon_tag": "", "flipkart_affid": "" }`) is only used for direct store links when
+Supabase can't be reached; an empty value means a plain link.
 
-## Adding a deal from a reel job
+## Adding a product from a reel job
 
 ```bash
 cd ~/projects/zoya-site
-~/projects/ComfyUI/.venv/bin/python scripts/add_deal.py ~/projects/reel-jobs/<slug> \
-    --asin B0XXXXXXXX --hot --reel-url https://youtube.com/shorts/XXXX
+~/projects/ComfyUI/.venv/bin/python scripts/add_product.py ~/projects/reel-jobs/<job> \
+    --product-id oneplus-nord-buds-3r --asin B0XXXXXXXX --featured --reel-url https://youtube.com/shorts/XXXX --sql
+# run the printed SQL with the Supabase connector (execute_sql), then:
+python3 scripts/export_products.py      # resync products.json from Supabase
+git add -A && git commit -m "Add <product_id>" && git push
 ```
 
-What the script does:
-- It reads `<job>/product.json` (title, `price.value`, `price.mrp`, `asin` or `source_url`, `site`, `features`, `hero_cutout`).
-- It trims the hero cutout, centres it on a 640px canvas and saves it as `images/deals/<slug>.webp`.
-- It upserts the deal into `deals.json` by slug (newest first). Re-running it updates the deal in place and keeps the old date, hot flag and reel_url unless you override them.
-- The slug defaults to the job folder name. You can override any field with `--slug --title --price --mrp --url --store --date --image`, and `--hot`/`--not-hot`.
-- `--dry-run` prints the result without writing anything.
-- The script only touches local files: no git, no deploy, no network. Commit and push yourself when you're happy with the result.
+What `add_product.py` does:
+- It reads `<job>/product.json` (title, brand, `price.value`, `price.mrp`, `asin` or `source_url`, `site`, `features`, `category`/`category_guess`, `hero_cutout`).
+- It trims the hero cutout, centres it on a 640px canvas and saves it as `images/products/<product_id>.webp`.
+- It upserts the product into `products.json` by `product_id` and, with `--sql`, prints the Supabase upsert + price check.
+- `--product-id` defaults to the slugified title. Pass a short `brand-model` id; it's the permanent key.
+- Overrides: `--title --brand --category --tagline --highlight (x4) --price --mrp --url --store --image --sort-order`, `--featured`/`--not-featured`. `--dry-run` writes nothing.
+- No git, no deploy. Network only with `--push` (needs `SUPABASE_SERVICE_ROLE_KEY` in env; never commit it).
 - Requires Python 3.9+ with Pillow (the ComfyUI venv has it).
 
 ## Preview locally

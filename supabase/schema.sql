@@ -1,3 +1,4 @@
--- Superseded: the applied schema lives in supabase/migrations/ (see supabase/README.md).
--- 20261023_init_deals.sql              deals, price_history, clicks, config, deal_cards, RLS, seed
+-- Superseded: the applied schema lives in supabase/migrations/ (see supabase/README.md), in order:
+-- 20261023_init_deals.sql              v1: deals, price_history, clicks, config, deal_cards (replaced)
 -- 20261023_harden_rls_auto_enable.sql  advisor fix (revoke API execute on rls_auto_enable)
+-- 20261023_products.sql                current: products (pk product_id), price_history, clicks, product_cards
