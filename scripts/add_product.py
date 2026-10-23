@@ -85,7 +85,7 @@ def q(v):
 
 
 SNAPSHOT_FIELDS = ["product_id", "title", "brand", "category", "tagline", "highlights", "image_url",
-                   "store", "store_product_id", "product_url", "reel_url", "listing_price",
+                   "store", "store_product_id", "product_url", "reel_url", "instagram_url", "listing_price",
                    "current_price", "previous_price", "price_checked_at", "featured", "sort_order",
                    "created_at"]
 DB_COLS = ["product_id", "title", "brand", "category", "tagline", "highlights", "image_url", "store",

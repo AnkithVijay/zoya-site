@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-23T17:43:50+00:00",
+  "updated": "2026-10-23T18:13:47+00:00",
   "source": "supabase",
   "products": [
     {
@@ -17,7 +17,8 @@
       "store": "amazon",
       "store_product_id": "B08LHTJTBB",
       "product_url": "https://www.amazon.in/dp/B08LHTJTBB",
-      "reel_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
+      "reel_url": "https://youtube.com/shorts/IQTSSvSW4Wo",
+      "instagram_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
       "listing_price": null,
       "current_price": 349,
       "previous_price": null,
@@ -41,7 +42,8 @@
       "store": "amazon",
       "store_product_id": "B0CXDN7V9N",
       "product_url": "https://www.amazon.in/dp/B0CXDN7V9N",
-      "reel_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
+      "reel_url": "https://youtube.com/shorts/IQTSSvSW4Wo",
+      "instagram_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
       "listing_price": 1299,
       "current_price": 209,
       "previous_price": null,
@@ -66,7 +68,8 @@
       "store": "amazon",
       "store_product_id": "B0CQLXQKGR",
       "product_url": "https://www.amazon.in/dp/B0CQLXQKGR",
-      "reel_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
+      "reel_url": "https://youtube.com/shorts/IQTSSvSW4Wo",
+      "instagram_url": "https://www.instagram.com/reel/De2Hn0qEZeR/",
       "listing_price": 699,
       "current_price": 249,
       "previous_price": null,
