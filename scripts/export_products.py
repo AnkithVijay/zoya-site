@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Regenerate products.json (the instant-paint snapshot) from Supabase.
+"""OPTIONAL: save a local JSON backup of the public product_cards view.
+
+Not part of the normal workflow. The site no longer reads products.json: app.js fetches
+product_cards from Supabase live (with a localStorage cache), so nothing here needs a deploy.
+Use this only if you want an offline copy / diff of what the site shows. The output file
+(products.json in the repo folder) is git-ignored; don't commit it.
 
 Reads the public product_cards view with the publishable key (read-only; RLS lets anon
 see active products only), so no secret is needed.
 
   python3 scripts/export_products.py [--site ~/projects/zoya-site] [--check]
 
-Run it after every products / price_history change (add_product.py, record_price.py,
-hiding a product), then commit + push the site so the snapshot matches the database.
---check exits 1 if products.json is out of date (writes nothing).
+--check exits 1 if the local backup is out of date (writes nothing).
 """
 import argparse, datetime as dt, json, os, sys, tempfile, urllib.request
 from pathlib import Path

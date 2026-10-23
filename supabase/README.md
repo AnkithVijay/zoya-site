@@ -9,11 +9,12 @@ Project ref: `rrsxsqtfotxkjgkbqnpx` (org "zoya"). API URL: `https://rrsxsqtfotxk
 
 | Object | What it holds | Browser (anon) access |
 |---|---|---|
-| `products` | one row per product: `product_id` (slug pk), `title`, `brand`, `category`, `tagline`, `highlights` (text[], max 4), `image_url`, `store`, `store_product_id` (ASIN / Flipkart PID), `product_url` (clean, no tag), `reel_url`, `listing_price` (MRP, null if unconfirmed), `current_price`, `price_checked_at`, `click_count`, `featured`, `sort_order`, `active`, `created_at`, `updated_at` | read (active rows only) |
+| `products` | one row per product: `product_id` (slug pk), `title`, `brand`, `category`, `tagline`, `highlights` (text[], max 4), `image_url`, `store`, `store_product_id` (ASIN / Flipkart PID), `product_url` (clean, no tag), `reel_url` (YouTube Short), `instagram_url` (Instagram reel), `listing_price` (MRP, null if unconfirmed), `current_price`, `price_checked_at`, `click_count`, `featured`, `sort_order`, `active`, `created_at`, `updated_at` | read (active rows only) |
 | `price_history` | every price check: `product_id`, `price`, `listing_price`, `source` (`manual` / `paapi` / `keepa`), `checked_at` | read |
 | `clicks` | one row per "View deal" tap: `product_id`, `clicked_at`, `referrer`, `country`, `ua_hash` (SHA-256 of the user agent; no IP stored) | none |
 | `config` | single row: `amazon_tag`, `flipkart_affid` (read by the `go` function) | none |
-| `product_cards` (view, `security_invoker`) | what the site renders: active products + `previous_price` (second-newest check) | read |
+| `product_cards` (view, `security_invoker`) | what the site renders: active products + `previous_price` (second-newest check), plus `instagram_url` | read |
+| Storage bucket `product-images` (public) | product images, `<product_id>.webp`, served at `/storage/v1/object/public/product-images/<file>` | read via the public URL only; **no** `storage.objects` policies, so no anon/authenticated list/upload/update/delete |
 
 Triggers:
 - inserting into `price_history` updates the product's `current_price`, `listing_price` (if given) and `price_checked_at` (only if the check is the newest one);
@@ -22,7 +23,7 @@ Triggers:
 RLS is on for every table. anon/authenticated have only `SELECT` on `products`, `price_history` and `product_cards`.
 Every write goes through the service role (the `go` edge function, the Supabase connector, or a script with the service key in env).
 
-Schema source, in order: `migrations/20261023_init_deals.sql` (v1, deals), `migrations/20261023_harden_rls_auto_enable.sql`, `migrations/20261023_products.sql` (current; rebuilds around `products`). All applied.
+Schema source, in order: `migrations/20261023_init_deals.sql` (v1, deals), `migrations/20261023_harden_rls_auto_enable.sql`, `migrations/20261023_products.sql` (rebuilds around `products`), `migrations/20261023_instagram_url.sql`, `migrations/20261023_product_images_bucket.sql`. All applied.
 
 ## Click tracker: `go` edge function
 
@@ -41,14 +42,13 @@ update public.config set amazon_tag = 'yourtag-21', updated_at = now() where id;
 -- Flipkart: update public.config set flipkart_affid = 'xxxx', updated_at = now() where id;
 ```
 
-## Adding or updating products (reel pipeline)
+## Adding or updating products (reel pipeline): database only, no deploy
 
-**How the bot does it:** run SQL through the Supabase connector (`execute_sql` on project `rrsxsqtfotxkjgkbqnpx`). The service key is never needed locally.
+The site reads `product_cards` live and images come from Storage, so a product change is
+live as soon as the database write lands. Nothing is committed or pushed.
 
-1. On the Mac, run `scripts/add_product.py <job> --product-id <brand-model> --sql` (reel-pipeline stage s8 does this). It writes the image and a local `products.json` entry and **prints** the SQL.
-2. Run the printed SQL with `execute_sql`.
-3. Run `python3 scripts/export_products.py` so `products.json` is an exact snapshot of `product_cards` (`--check` exits 1 if it's stale).
-4. Commit and push the site (new `images/products/<product_id>.webp` + `products.json`).
+1. On the Mac, run `scripts/add_product.py <job> --product-id <brand-model> --sql` (reel-pipeline stage s8 does this). It uploads the image to `product-images/<product_id>.webp` with the service-role key (`SUPABASE_SERVICE_ROLE_KEY` or `~/.config/zoya-deals/service_role_key`; never in the repo) and **prints** the SQL with the Storage `image_url`.
+2. Run the printed SQL with `execute_sql`. Done.
 
 The SQL looks like this:
 
@@ -57,18 +57,18 @@ insert into public.products (product_id, title, brand, category, tagline, highli
                              store_product_id, product_url, reel_url, featured, sort_order, active)
   values ('oneplus-nord-buds-3r', 'OnePlus Nord Buds 3R TWS Earbuds', 'OnePlus', 'tws_earbuds', null,
           array['12.4mm titanium drivers', '47ms low latency', '54 hours battery', 'dual connection']::text[],
-          'images/products/oneplus-nord-buds-3r.webp', 'amazon', 'B0FMDL81GS',
+          'https://rrsxsqtfotxkjgkbqnpx.supabase.co/storage/v1/object/public/product-images/oneplus-nord-buds-3r.webp?v=<upload unix time>', 'amazon', 'B0FMDL81GS',
           'https://www.amazon.in/dp/B0FMDL81GS', null, true, 0, true)
   on conflict (product_id) do update set title = excluded.title, ..., active = true, updated_at = now();
 insert into public.price_history (product_id, price, listing_price, source)
   values ('oneplus-nord-buds-3r', 1999, null, 'manual');   -- listing_price = MRP only if confirmed
 ```
 
-To record a new price, run `python3 scripts/record_price.py <product_id> <price> [--mrp N] [--source manual]`. It prints one `insert into public.price_history ...` line for `execute_sql`. Then export + push.
+To record a new price, run `python3 scripts/record_price.py <product_id> <price> [--mrp N] [--source manual]`. It prints one `insert into public.price_history ...` line for `execute_sql`. Live at once.
 
-Alternative: `--push` on either script writes over REST. It needs `SUPABASE_SERVICE_ROLE_KEY` exported in your shell. **Never commit that key.** Keep it out of the repo, `config.json` and the site JS. (`export_products.py` only uses the publishable key.)
+Alternative: `--push` on either script writes over REST. It needs the service-role key (`SUPABASE_SERVICE_ROLE_KEY` or `~/.config/zoya-deals/service_role_key`). **Never commit that key.** Keep it out of the repo, `config.json` and the site JS. `export_products.py` is optional (a git-ignored local backup of `product_cards`; publishable key only).
 
-To hide a product: `update public.products set active = false where product_id = '<id>';` then export + push. It disappears from the site and `/go` returns 404.
+To hide a product: `update public.products set active = false where product_id = '<id>';`. Live at once. It disappears from the site and `/go` returns 404.
 
 ### Useful queries
 
@@ -88,4 +88,6 @@ Don't scrape Amazon product pages; the Associates terms don't allow it.
 
 ## Site wiring
 
-`assets/app.js` paints `products.json` first, and in parallel fetches `/rest/v1/product_cards` with the publishable key (safe in client code); when that lands it re-renders if anything changed (`<html data-source="snapshot|supabase">`). Rows link to `/functions/v1/go?p=<product_id>`. If Supabase is unreachable, the snapshot stays up and links go straight to the store (tag from `config.json`).
+`assets/app.js` paints the last good `product_cards` response from `localStorage` (`zoya.product_cards.v1`) if there is one, otherwise three placeholder rows. In parallel it fetches `/rest/v1/product_cards` with the publishable key (safe in client code), re-renders if anything changed (`<html data-source="cache|supabase">`) and saves the response as the new cache. Rows link to `/functions/v1/go?p=<product_id>`. If Supabase is unreachable, cached rows stay up and link straight to the store (tag from `config.json`); with no cache it shows "Deals couldn't load".
+
+The one-shot `seed-product-images` edge function (used once on 2026-10-23 to copy the first 3 images into Storage) is now an inert stub returning 410; it can be deleted from the dashboard.

@@ -38,6 +38,9 @@ h1{margin:0;font-size:20px;font-weight:500;letter-spacing:-.01em}
 .asof{margin:1px 0 0;color:#5f5f5f;font-size:11px}
 .new{color:var(--accent);font-size:11px;font-weight:500;margin-left:6px;letter-spacing:.02em}
 .chev{flex:none;width:8px;height:14px;stroke:var(--muted);fill:none;stroke-width:1.5;opacity:.7}
+.skel:hover{background:none}
+.skel .bar{display:inline-block;vertical-align:middle;height:.7em;border-radius:4px;background:var(--surface)}
+.skel .w30{width:30%}.skel .w40{width:40%}.skel .w60{width:60%}.skel .w80{width:80%}
 .empty{color:var(--muted);text-align:center;font-size:14px;padding:16px 0}
 .foot{margin-top:48px;color:#5f5f5f;font-size:11px;line-height:1.5;text-align:center}
 .foot p{margin:0}

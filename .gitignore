@@ -3,3 +3,6 @@ _src/
 __pycache__/
 .DS_Store
 .wrangler/
+# optional local backup from scripts/export_products.py (the site doesn't read it)
+products.json
+.env*

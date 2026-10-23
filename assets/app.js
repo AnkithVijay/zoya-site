@@ -1,10 +1,11 @@
-/* Zoya Deals: one simple list of products.
-   1. Paints instantly from products.json (static snapshot of the product_cards view).
-   2. Refreshes from Supabase (public product_cards view) in the background and re-renders
-      only if something changed.
+/* Zoya Deals: one simple list of products, read straight from Supabase.
+   1. Paints instantly from localStorage (the last good product_cards response), or a
+      few placeholder rows on a first visit.
+   2. Fetches the public product_cards view, re-renders only if something changed, and
+      saves the response as the new cache. Product changes need no site deploy.
    "View deal" goes through the /go edge function (?p=<product_id>), which logs the click and
-   redirects with the affiliate tag. If Supabase is unreachable, links go straight to the
-   store with the tag from config.json. */
+   redirects with the affiliate tag. If Supabase is unreachable, cached rows link straight to
+   the store with the tag from config.json. */
 (function () {
   "use strict";
   var $ = function (s) { return document.querySelector(s); };
@@ -16,7 +17,8 @@
   var SUPA_KEY = "sb_publishable_qEE2Mx-rNBreFFh3dJGHrA_886HYX43";
   var COLS = "product_id,title,brand,category,tagline,highlights,image_url,store,store_product_id," +
     "product_url,reel_url,listing_price,current_price,previous_price,price_checked_at,featured,sort_order,created_at";
-  var source = "none";     // snapshot | supabase
+  var CACHE_KEY = "zoya.product_cards.v1";
+  var source = "none";     // cache | supabase
   var tracked = true;      // links via /go (false once Supabase is known to be down)
   var lastKey = "";
 
@@ -35,10 +37,14 @@
       return rows;
     });
   }
-  function fromSnapshot() {
-    return getJSON("products.json").then(function (j) {
-      return Array.isArray(j) ? j : (j && j.products) || [];
-    });
+  function readCache() {
+    try {
+      var c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      return c && Array.isArray(c.rows) && c.rows.length ? c.rows : null;
+    } catch (e) { return null; }
+  }
+  function writeCache(rows) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved: new Date().toISOString(), rows: rows })); } catch (e) {}
   }
   function normalize(r) {
     return {
@@ -172,21 +178,38 @@
     render();
   }
 
-  // Start both requests at once: the snapshot paints first; Supabase replaces it when it lands.
-  var live = fromSupabase();
-  var snap = fromSnapshot().then(function (rows) {
-    if (source !== "supabase") apply(rows, "snapshot");
-    return rows;
-  }, function (e) { console.warn("products.json unavailable", e); return null; });
+  // First visit, nothing cached: a few placeholder rows in the same shape as real ones.
+  function skeleton() {
+    var list = $("#list"); list.textContent = ""; list.setAttribute("aria-busy", "true");
+    for (var i = 0; i < 3; i++) {
+      var li = el("li"), r = el("span", "row skel"), info = el("span", "info");
+      li.setAttribute("aria-hidden", "true");
+      r.appendChild(el("span", "thumb"));
+      [["name", "w60"], ["meta", "w30"], ["hl", "w80"], ["asof", "w40"]].forEach(function (c) {
+        var p = el("p", c[0]); p.appendChild(el("span", "bar " + c[1])); info.appendChild(p);
+      });
+      r.appendChild(info); li.appendChild(r); list.appendChild(li);
+    }
+  }
 
-  live.then(function (rows) { apply(rows, "supabase"); }, function (e) {
-    console.warn("Supabase unavailable; showing the products.json snapshot with direct store links", e);
+  var live = fromSupabase();
+  var cached = readCache();
+  if (cached) apply(cached, "cache"); else skeleton();
+
+  live.then(function (rows) {
+    $("#list").removeAttribute("aria-busy");
+    apply(rows, "supabase");
+    writeCache(rows);
+  }, function (e) {
+    console.warn("Supabase unavailable; " + (cached ? "showing cached deals with direct store links" : "no cached deals"), e);
     tracked = false;
-    return Promise.all([snap, getJSON("config.json").catch(function () { return {}; })]).then(function (res) {
-      cfg.amazon_tag = (res[1] && res[1].amazon_tag) || "";
-      cfg.flipkart_affid = (res[1] && res[1].flipkart_affid) || "";
-      if (res[0]) { lastKey = ""; apply(res[0], "snapshot"); }
+    return getJSON("config.json").catch(function () { return {}; }).then(function (c) {
+      cfg.amazon_tag = (c && c.amazon_tag) || "";
+      cfg.flipkart_affid = (c && c.flipkart_affid) || "";
+      $("#list").removeAttribute("aria-busy");
+      if (cached) { lastKey = ""; apply(cached, "cache"); }
       else {
+        $("#list").textContent = "";
         $("#empty").textContent = "Deals couldn't load. Watch the latest on YouTube.";
         $("#empty").hidden = false;
       }
