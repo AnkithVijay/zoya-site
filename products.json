@@ -1,7 +1,80 @@
 {
-  "updated": "2026-10-23T09:58:55+00:00",
+  "updated": "2026-10-23T17:30:58+00:00",
   "source": "supabase",
   "products": [
+    {
+      "product_id": "dyazo-6-angle-laptop-riser",
+      "title": "Dyazo 6-Angle Aluminium Laptop Riser Stand",
+      "brand": "Dyazo",
+      "category": "Desk glow-up · 3 under ₹500",
+      "tagline": null,
+      "highlights": [
+        "6 adjustable angles",
+        "fits 10–15.6\" laptops",
+        "foldable aluminium build"
+      ],
+      "image_url": "images/products/dyazo-6-angle-laptop-riser.webp",
+      "store": "amazon",
+      "store_product_id": "B08LHTJTBB",
+      "product_url": "https://www.amazon.in/dp/B08LHTJTBB",
+      "reel_url": null,
+      "listing_price": null,
+      "current_price": 349,
+      "previous_price": null,
+      "price_checked_at": "2026-10-23T17:14:00+00:00",
+      "featured": true,
+      "sort_order": -3,
+      "created_at": "2026-10-23T17:30:51.665095+00:00"
+    },
+    {
+      "product_id": "striff-world-map-desk-mat",
+      "title": "STRIFF World Map Extended Desk Mat (800 × 300 mm)",
+      "brand": "STRIFF",
+      "category": "Desk glow-up · 3 under ₹500",
+      "tagline": null,
+      "highlights": [
+        "800 × 300 × 2 mm",
+        "stitched edges",
+        "non-slip rubber base"
+      ],
+      "image_url": "images/products/striff-world-map-desk-mat.webp",
+      "store": "amazon",
+      "store_product_id": "B0CXDN7V9N",
+      "product_url": "https://www.amazon.in/dp/B0CXDN7V9N",
+      "reel_url": null,
+      "listing_price": 1299,
+      "current_price": 209,
+      "previous_price": null,
+      "price_checked_at": "2026-10-23T17:14:00+00:00",
+      "featured": true,
+      "sort_order": -2,
+      "created_at": "2026-10-23T17:30:51.665095+00:00"
+    },
+    {
+      "product_id": "ambrane-twistand-360",
+      "title": "Ambrane Twistand 360 Foldable Mobile Stand",
+      "brand": "Ambrane",
+      "category": "Desk glow-up · 3 under ₹500",
+      "tagline": null,
+      "highlights": [
+        "360° rotation",
+        "metal round base",
+        "foldable",
+        "fits 4–6.9\" phones"
+      ],
+      "image_url": "images/products/ambrane-twistand-360.webp",
+      "store": "amazon",
+      "store_product_id": "B0CQLXQKGR",
+      "product_url": "https://www.amazon.in/dp/B0CQLXQKGR",
+      "reel_url": null,
+      "listing_price": 699,
+      "current_price": 249,
+      "previous_price": null,
+      "price_checked_at": "2026-10-23T17:14:00+00:00",
+      "featured": true,
+      "sort_order": -1,
+      "created_at": "2026-10-23T17:30:51.665095+00:00"
+    },
     {
       "product_id": "oneplus-nord-buds-3r",
       "title": "OnePlus Nord Buds 3R TWS Earbuds",
