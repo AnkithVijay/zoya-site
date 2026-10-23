@@ -6,17 +6,24 @@ Reads   <job>/product.json   (reel-pipeline schema: title, price{value,mrp}, asi
 Writes  <site>/images/deals/<slug>.webp   (hero cutout, trimmed, 640px webp)
         <site>/deals.json                 (upsert by slug, newest first)
 
-Local files only: no git, no deploy, no network.
+Database (Supabase project rrsxsqtfotxkjgkbqnpx; the live site reads from it):
+  --sql    also print idempotent SQL (upsert deal + one price_history row). The bot runs
+           it through the Supabase connector (execute_sql). This is the default path.
+  --push   also write to Supabase over REST. Needs SUPABASE_SERVICE_ROLE_KEY in the
+           environment (never commit it; SUPABASE_URL defaults to the project URL).
+Without --sql/--push it only touches local files: no git, no deploy, no network.
 
   python3 scripts/add_deal.py ~/projects/reel-jobs/<slug> \
       [--site ~/projects/zoya-site] [--asin B0XXXXXXXX | --url URL] [--store amazon|flipkart]
       [--price 1999] [--mrp 2999] [--title "..."] [--slug name] [--date YYYY-MM-DD]
-      [--reel-url URL] [--hot | --not-hot] [--image path.png] [--dry-run]
+      [--reel-url URL] [--hot | --not-hot] [--image path.png] [--deal-id ID]
+      [--source manual|paapi|keepa] [--sql] [--push] [--dry-run]
 """
-import argparse, datetime as dt, json, os, re, sys, tempfile
+import argparse, datetime as dt, json, os, re, sys, tempfile, urllib.request
 from pathlib import Path
 
 SITE_DEFAULT = Path(__file__).resolve().parent.parent
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rrsxsqtfotxkjgkbqnpx.supabase.co")
 ASIN_RE = re.compile(r"/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})", re.I)
 
 
@@ -55,6 +62,51 @@ def build_url(store, asin=None, url=None):
         q = f"pid={pid.group(1)}&" if pid else ""
         return f"{base}?{q}affid={{FLIPKART_AFFID}}"
     return None
+
+
+def clean_url(url):
+    """Product URL for the database: no affiliate params (the go function adds them)."""
+    return re.sub(r"[?&](tag|affid)=\{[A-Z_]+\}", "", url).rstrip("/?") if url else url
+
+
+def q(v):
+    if v is None:
+        return "null"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    return "'" + str(v).replace("'", "''") + "'"
+
+
+def deal_sql(row, price, mrp, source):
+    """Idempotent upsert + price check. The price_history trigger sets current_price,
+    listing_price and price_checked_at on the deal."""
+    cols = ["id", "title", "store", "asin", "product_url", "image_url", "reel_url", "active"]
+    vals = ", ".join(q(row.get(c)) if c != "active" else "true" for c in cols)
+    upd = ", ".join(f"{c} = coalesce(excluded.{c}, public.deals.{c})" for c in cols[1:7])
+    sql = (f"insert into public.deals ({', '.join(cols)}) values ({vals})\n"
+           f"  on conflict (id) do update set {upd}, active = true, updated_at = now();\n")
+    if price is not None:
+        sql += (f"insert into public.price_history (deal_id, price, listing_price, source) "
+                f"values ({q(row['id'])}, {q(price)}, {q(mrp)}, {q(source)});\n")
+    return sql
+
+
+def push_rest(row, price, mrp, source):
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not key:
+        sys.exit("error: --push needs SUPABASE_SERVICE_ROLE_KEY in the environment (don't commit it)")
+    def call(path, body, prefer):
+        req = urllib.request.Request(f"{SUPABASE_URL}/rest/v1/{path}", data=json.dumps(body).encode(),
+                                     method="POST", headers={"apikey": key, "Authorization": f"Bearer {key}",
+                                     "Content-Type": "application/json", "Prefer": prefer})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status
+    body = {k: v for k, v in row.items() if v is not None}
+    body["active"] = True
+    print(f"  supabase deals upsert -> {call('deals?on_conflict=id', body, 'resolution=merge-duplicates,return=minimal')}")
+    if price is not None:
+        print("  supabase price_history -> " + str(call("price_history", {"deal_id": row["id"], "price": price,
+              "listing_price": mrp, "source": source}, "return=minimal")))
 
 
 def find_image(job, product, override):
@@ -109,6 +161,10 @@ def main(argv=None):
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--hot", dest="hot", action="store_true", default=None)
     g.add_argument("--not-hot", dest="hot", action="store_false")
+    ap.add_argument("--deal-id", help="database id (default: slug)")
+    ap.add_argument("--source", default="manual", choices=["manual", "paapi", "keepa"], help="price source")
+    ap.add_argument("--sql", action="store_true", help="print Supabase SQL (run via the connector)")
+    ap.add_argument("--push", action="store_true", help="write to Supabase via REST (needs service key env)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
 
@@ -166,9 +222,24 @@ def main(argv=None):
     print(("DRY RUN " if a.dry_run else "") + ("updated" if old else "added") + f" {slug}: {title} @ {price} [{store}]")
     print(f"  url   {url}")
     print(f"  image {img} -> {site / rel_img}")
+    row = {
+        "id": slugify(a.deal_id or slug), "title": title, "store": store,
+        "asin": (a.asin or product.get("asin") or None) if store == "amazon" else None,
+        "product_url": clean_url(url),
+        "image_url": rel_img, "reel_url": reel or None,
+    }
+    if row["asin"] is None and store == "amazon":
+        m = ASIN_RE.search(url)
+        row["asin"] = m.group(1).upper() if m else None
+    db_mrp = mrp if (mrp and mrp > price) else None
+    if a.sql:
+        print("-- Supabase SQL (run with the connector's execute_sql):")
+        print(deal_sql(row, price, db_mrp, a.source))
     if a.dry_run:
         print(json.dumps(deal, ensure_ascii=False, indent=2))
         return 0
+    if a.push:
+        push_rest(row, price, db_mrp, a.source)
     to_webp(img, site / rel_img)
     fd, tmp = tempfile.mkstemp(dir=site, suffix=".json")
     with os.fdopen(fd, "w", encoding="utf-8") as f:

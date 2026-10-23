@@ -1,21 +1,25 @@
 # Zoya Deals: link-in-bio site (zoya.marqlo.in)
 
+> **Backend:** deals, price history and click tracking live in Supabase. See [`supabase/README.md`](supabase/README.md). The site reads the public `deal_cards` view; "View deal" goes through the `go` function (click log + affiliate tag from the `config` table). `config.json` and `deals.json` are only the offline fallback.
+
 This is a static site made of plain HTML, CSS and a little JS. It has no build step, no framework, no analytics and no third-party requests, and it runs as-is on GitHub Pages or Cloudflare Pages.
 
 ```
 index.html              page shell, OG/Twitter meta tags, footer disclosure
 assets/style.css        black void + cyan/violet glow, system "Avenir-like" font stack
-assets/app.js           loads config.json + deals.json, newest deal pinned, search, affiliate tags
+assets/app.js           loads deals from Supabase (deal_cards), falls back to config.json + deals.json
 assets/img/             avatar-256.webp, og.jpg (1200x630), favicons
 favicon.ico             made from the channel watermark
-deals.json              the deal cards (edit by hand or with scripts/add_deal.py)
+deals.json              fallback deal list (used only if Supabase is unreachable)
 config.json             affiliate IDs (empty means plain links)
 images/deals/<slug>.webp  product cutouts
 CNAME                   zoya.marqlo.in (used by GitHub Pages; Cloudflare ignores it)
 .nojekyll               serve files as-is on GitHub Pages
 _headers                cache and security headers (Cloudflare Pages only)
 404.html, robots.txt
-scripts/add_deal.py     reel job -> deal card (local only)
+scripts/add_deal.py     reel job -> deal image + deals.json, --sql prints Supabase SQL
+scripts/record_price.py record a price check (prints SQL)
+supabase/               schema migrations, go edge function, backend docs (README.md)
 qc/                     screenshots (git-ignored, not deployed)
 
 Layout (minimal v2): one centred 440px column; each deal is a single list row
