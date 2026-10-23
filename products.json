@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-23T17:32:44+00:00",
+  "updated": "2026-10-23T17:35:32+00:00",
   "source": "supabase",
   "products": [
     {
@@ -74,31 +74,6 @@
       "featured": true,
       "sort_order": -1,
       "created_at": "2026-10-23T17:30:51.665095+00:00"
-    },
-    {
-      "product_id": "oneplus-nord-buds-3r",
-      "title": "OnePlus Nord Buds 3R TWS Earbuds",
-      "brand": "OnePlus",
-      "category": "tws_earbuds",
-      "tagline": null,
-      "highlights": [
-        "12.4mm titanium drivers",
-        "47ms low latency",
-        "54 hours battery",
-        "dual connection"
-      ],
-      "image_url": "images/products/oneplus-nord-buds-3r.webp",
-      "store": "amazon",
-      "store_product_id": "B0FMDL81GS",
-      "product_url": "https://www.amazon.in/dp/B0FMDL81GS",
-      "reel_url": null,
-      "listing_price": null,
-      "current_price": 1999,
-      "previous_price": null,
-      "price_checked_at": "2026-10-23T09:44:41.104295+00:00",
-      "featured": true,
-      "sort_order": 0,
-      "created_at": "2026-10-23T09:44:41.104295+00:00"
     }
   ]
 }
